@@ -1,0 +1,13 @@
+name: Calendar Sync
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Sync calendar
+        run: echo "Calendar sync will run here"
