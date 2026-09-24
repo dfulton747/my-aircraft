@@ -71,7 +71,7 @@ jobs:
           print(f"Saved {len(events)} calendar events")
           PY
 
-             - name: Commit updated schedule
+      - name: Commit updated schedule
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
