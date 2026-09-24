@@ -1,0 +1,31 @@
+<!doctype html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>My Aircraft</title>
+<style>
+html,body{margin:0;height:100%;font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#000}
+iframe{width:100%;height:100%;border:0}
+#menu{position:fixed;top:10px;right:10px;z-index:10;background:rgba(0,0,0,.8);padding:8px;border-radius:10px;max-width:90vw}
+button{margin:3px;padding:8px 10px;border:0;border-radius:7px}
+</style>
+</head>
+<body>
+<div id="menu">
+<button onclick="show('A9C52E')">N729CA</button>
+<button onclick="show('A6CAA1')">N537CA</button>
+<button onclick="show('A8BF91')">N663CA</button>
+<button onclick="show('A7488C')">N569CA</button>
+<button onclick="show('AA3086')">N756CA</button>
+<button onclick="show('A95C2F')">N702CA</button>
+<button onclick="show('ACB84D')">N919CA</button>
+<button onclick="show('ACFC26')">N936CA</button>
+</div>
+<iframe id="map"></iframe>
+<script>
+const base='https://globe.adsbexchange.com/?icao=';
+function show(hex){document.getElementById('map').src=base+hex;}
+show('A9C52E');
+</script>
+</body>
+</html>
