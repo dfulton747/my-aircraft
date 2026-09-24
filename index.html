@@ -28,6 +28,9 @@ iframe {
 </style>
 </head>
 <body>
+
+<iframe id="map"></iframe>
+
 <div id="menu">
 <button onclick="show('A9C52E')">N729CA</button>
 <button onclick="show('A6CAA1')">N537CA</button>
@@ -37,13 +40,14 @@ iframe {
 <button onclick="show('A95C2F')">N702CA</button>
 <button onclick="show('ACB84D')">N919CA</button>
 <button onclick="show('ACFC26')">N936CA</button>
-     <button onclick="show('AD3C48')">N952CA</button>
-</div</div>
-<iframe id="map"></iframe>
+<button onclick="show('AD3C48')">N952CA</button>
+</div>
+
 <script>
 const base='https://globe.adsbexchange.com/?icao=';
 function show(hex){document.getElementById('map').src=base+hex;}
 show('A9C52E');
 </script>
+
 </body>
 </html>
