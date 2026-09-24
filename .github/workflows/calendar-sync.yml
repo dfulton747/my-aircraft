@@ -24,7 +24,7 @@ jobs:
           import requests
           import os
 
-          url = os.environ["CALENDAR_URL"]
+          url = os.environ["CALENDAR_URL"].replace("webcal://", "https://", 1)
           data = requests.get(url, timeout=30).content
 
           with open("calendar.ics", "wb") as f:
