@@ -73,6 +73,12 @@ function show(hex) {
   document.getElementById('map').src = base + hex;
 }
 
+function trackFlight(callsign) {
+  document.getElementById('map').src =
+    'https://globe.adsbexchange.com/?callsign=' +
+    encodeURIComponent(callsign);
+}
+
 show('A9C52E');
 
 
@@ -92,7 +98,14 @@ fetch('schedule.json?ts=' + Date.now())
     });
 
     const upcoming = schedule
-      .filter(event => new Date(event.start) > now)
+      .filter(event => {
+        const start = new Date(event.start);
+        return start > now &&
+               !event.summary.trim().startsWith('OFF') &&
+               !event.summary.trim().startsWith('GDO') &&
+               !event.summary.trim().startsWith('UDO') &&
+               !event.summary.trim().startsWith('LCR');
+      })
       .sort((a,b) =>
         new Date(a.start) - new Date(b.start)
       )[0];
@@ -102,20 +115,38 @@ fetch('schedule.json?ts=' + Date.now())
     if (!event) return;
 
     const box = document.createElement('div');
-
     box.id = 'scheduleBox';
 
     const title = current
-      ? 'CURRENT SCHEDULE'
+      ? 'CURRENT FLIGHT'
       : 'NEXT FLIGHT';
+
+    const flightNumber =
+      event.summary.trim().split(/\s+/)[0];
 
     box.innerHTML = `
       <div><strong>${title}</strong></div>
       <div>${event.summary || ''}</div>
       <div>${event.location || ''}</div>
+      <br>
+      <button id="trackFlightButton">
+        TRACK FLIGHT
+      </button>
     `;
 
     document.body.appendChild(box);
+
+    document
+      .getElementById('trackFlightButton')
+      .onclick = function() {
+        trackFlight(flightNumber);
+      };
+
+    /* Automatically track an active flight */
+    if (current &&
+        !flightNumber.startsWith('UBER')) {
+      trackFlight(flightNumber);
+    }
 
   })
   .catch(error => {
