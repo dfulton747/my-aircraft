@@ -24,7 +24,16 @@ jobs:
           import requests
           import os
 
-          url = os.environ["CALENDAR_URL"].replace("webcal://", "https://", 1)
+          url = os.environ["CALENDAR_URL"].strip().strip('"').strip("'")
+
+if url.startswith("webcal://"):
+    url = "https://" + url[9:]
+elif not url.startswith(("http://", "https://")):
+    raise ValueError("CALENDAR_URL does not contain a valid webcal/http/https URL")
+
+print("Calendar URL protocol:", url.split("://")[0])
+
+data = requests.get(url, timeout=30).content
           data = requests.get(url, timeout=30).content
 
           with open("calendar.ics", "wb") as f:
