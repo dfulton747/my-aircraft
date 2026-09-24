@@ -8,6 +8,76 @@ on:
 jobs:
   sync:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Sync calendar
-        run: echo "Calendar sync will run here"
+      - name: Get repository
+        uses: actions/checkout@v4
+
+      - name: Install Python packages
+        run: pip install icalendar requests
+
+      - name: Download calendar
+        env:
+          CALENDAR_URL: ${{ secrets.CALENDAR_URL }}
+        run: |
+          python - <<'PY'
+          import requests
+          import os
+
+          url = os.environ["CALENDAR_URL"]
+          data = requests.get(url, timeout=30).content
+
+          with open("calendar.ics", "wb") as f:
+              f.write(data)
+
+          print(f"Downloaded {len(data)} bytes")
+          PY
+
+      - name: Convert calendar to JSON
+        run: |
+          python - <<'PY'
+          from icalendar import Calendar
+          import json
+          from datetime import datetime
+
+          with open("calendar.ics", "rb") as f:
+              cal = Calendar.from_ical(f.read())
+
+          events = []
+
+          for component in cal.walk():
+              if component.name != "VEVENT":
+                  continue
+
+              start = component.get("DTSTART")
+              end = component.get("DTEND")
+
+              if not start:
+                  continue
+
+              start = start.dt
+              end = end.dt if end else None
+
+              events.append({
+                  "summary": str(component.get("SUMMARY", "")),
+                  "location": str(component.get("LOCATION", "")),
+                  "description": str(component.get("DESCRIPTION", "")),
+                  "start": start.isoformat(),
+                  "end": end.isoformat() if end else ""
+              })
+
+          events.sort(key=lambda x: x["start"])
+
+          with open("schedule.json", "w") as f:
+              json.dump(events, f, indent=2)
+
+          print(f"Saved {len(events)} calendar events")
+          PY
+
+      - name: Commit updated schedule
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add schedule.json
+          git diff --cached --quiet || git commit -m "Update flight schedule"
+          git push
