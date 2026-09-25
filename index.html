@@ -25,28 +25,7 @@ iframe {
 #menu {
   position:fixed;
   top:10px;
-  left:10px;
-  z-index:99999;
-}
 
-#menu button {
-  margin-right:4px;
-}
-
-#scheduleBox {
-  position:fixed;
-  top:55px;
-  left:10px;
-  z-index:99999;
-  background:rgba(0,0,0,0.85);
-  color:white;
-  padding:10px 14px;
-  border-radius:8px;
-  font-family:Arial,sans-serif;
-  font-size:15px;
-  line-height:1.4;
-  max-width:350px;
-}
 </style>
 </head>
 
@@ -54,7 +33,74 @@ iframe {
 
 <iframe id="map"></iframe>
 
-<div id="menu">
+#scheduleBox {
+  position:fixed;
+  top:55px;
+  left:10px;
+  z-index:99999;
+  background:rgba(0,0,0,0.90);
+  color:white;
+  padding:16px 18px;
+  border-radius:12px;
+  font-family:-apple-system,BlinkMacSystemFont,Arial,sans-serif;
+  font-size:16px;
+  line-height:1.45;
+  width:360px;
+  max-width:calc(100vw - 30px);
+  box-sizing:border-box;
+  box-shadow:0 4px 18px rgba(0,0,0,0.5);
+}
+
+#scheduleBox .flightNumber {
+  font-size:22px;
+  font-weight:700;
+}
+
+#scheduleBox .route {
+  font-size:18px;
+  font-weight:600;
+  margin-top:3px;
+}
+
+#scheduleBox .cityRoute {
+  font-size:14px;
+  color:#ddd;
+  margin-bottom:10px;
+}
+
+#scheduleBox .section {
+  font-size:12px;
+  font-weight:700;
+  letter-spacing:1px;
+  color:#aaa;
+  margin-top:8px;
+}
+
+#scheduleBox .row {
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+}
+
+#scheduleBox .label {
+  color:#bbb;
+}
+
+#scheduleBox .value {
+  font-weight:600;
+  text-align:right;
+}
+
+#scheduleBox .localTime {
+  color:#7dd3fc;
+}
+
+#scheduleBox .status {
+  font-size:15px;
+  font-weight:700;
+  margin-bottom:5px;
+}
+  <div id="menu">
   <button onclick="show('A9C52E')">N729CA</button>
   <button onclick="show('A6CAA1')">N537CA</button>
   <button onclick="show('A8BF91')">N663CA</button>
@@ -91,29 +137,252 @@ fetch('schedule.json?ts=' + Date.now())
 
     const now = new Date();
 
+    const airports = {
+      PAM: {
+        city: 'Panama City',
+        country: 'USA',
+        zone: 'America/Chicago'
+      },
+      ECP: {
+        city: 'Panama City',
+        country: 'USA',
+        zone: 'America/Chicago'
+      },
+      ORD: {
+        city: 'Chicago',
+        country: 'USA',
+        zone: 'America/Chicago'
+      },
+      AKH: {
+        city: 'Al Kharj',
+        country: 'Saudi Arabia',
+        zone: 'Asia/Riyadh'
+      },
+      DWC: {
+        city: 'Dubai',
+        country: 'UAE',
+        zone: 'Asia/Dubai'
+      },
+      ZAZ: {
+        city: 'Zaragoza',
+        country: 'Spain',
+        zone: 'Europe/Madrid'
+      },
+      HKG: {
+        city: 'Hong Kong',
+        country: 'China',
+        zone: 'Asia/Hong_Kong'
+      }
+    };
+
+    function airport(code) {
+      return airports[code] || {
+        city: code,
+        country: '',
+        zone: null
+      };
+    }
+
+    function cityName(code) {
+      const a = airport(code);
+      return a.country
+        ? `${a.city}, ${a.country}`
+        : a.city;
+    }
+
+    function formatLocal(date) {
+      return new Intl.DateTimeFormat(undefined, {
+        dateStyle: 'medium',
+        timeStyle: 'short'
+      }).format(date);
+    }
+
+    function formatTime(date) {
+      return new Intl.DateTimeFormat(undefined, {
+        hour: 'numeric',
+        minute: '2-digit'
+      }).format(date);
+    }
+
+    function deviceTimeZone() {
+      return Intl.DateTimeFormat().resolvedOptions().timeZone;
+    }
+
+    /*
+     * Convert a local date/time in a named airport time zone
+     * into an actual JavaScript Date.
+     */
+    function localTimeToDate(year, month, day, hour, minute, timeZone) {
+
+      let guess = new Date(
+        Date.UTC(year, month - 1, day, hour, minute)
+      );
+
+      for (let i = 0; i < 3; i++) {
+
+        const parts = new Intl.DateTimeFormat('en-US', {
+          timeZone: timeZone,
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false
+        }).formatToParts(guess);
+
+        const values = {};
+
+        parts.forEach(p => {
+          if (p.type !== 'literal') {
+            values[p.type] = p.value;
+          }
+        });
+
+        const shownAsUTC = Date.UTC(
+          Number(values.year),
+          Number(values.month) - 1,
+          Number(values.day),
+          Number(values.hour) === 24 ? 0 : Number(values.hour),
+          Number(values.minute)
+        );
+
+        const wantedAsUTC = Date.UTC(
+          year,
+          month - 1,
+          day,
+          hour,
+          minute
+        );
+
+        guess = new Date(
+          guess.getTime() + (wantedAsUTC - shownAsUTC)
+        );
+      }
+
+      return guess;
+    }
+
+    function parseFlightTimes(event) {
+
+      const description = event.description || '';
+
+      /*
+       * Looks for:
+       * PAM (1955) - AKH (1840+1)
+       */
+      const match = description.match(
+        /([A-Z]{3})\s*\((\d{3,4})(?:\+1)?\)\s*-\s*([A-Z]{3})\s*\((\d{3,4})(?:\+1)?\)/
+      );
+
+      if (!match) return null;
+
+      const dep = match[1];
+      const etdText = match[2];
+
+      const reportDate = new Date(event.start);
+
+      const depAirport = airport(dep);
+
+      if (!depAirport.zone) return null;
+
+      const depDateParts = new Intl.DateTimeFormat('en-US', {
+        timeZone: depAirport.zone,
+        year: 'numeric',
+        month: 'numeric',
+        day: 'numeric'
+      }).formatToParts(reportDate);
+
+      const parts = {};
+
+      depDateParts.forEach(p => {
+        if (p.type !== 'literal') {
+          parts[p.type] = Number(p.value);
+        }
+      });
+
+      let etdHour = Number(etdText.slice(0, -2));
+      let etdMinute = Number(etdText.slice(-2));
+
+      if (etdHour === 24) etdHour = 0;
+
+      const etd = localTimeToDate(
+        parts.year,
+        parts.month,
+        parts.day,
+        etdHour,
+        etdMinute,
+        depAirport.zone
+      );
+
+      return {
+        dep,
+        arr: match[3],
+        etd
+      };
+    }
+
     const current = schedule.find(event => {
       const start = new Date(event.start);
       const end = new Date(event.end);
 
-      return now >= start && now <= end;
+      return (
+        now >= start &&
+        now <= end &&
+        !event.summary.trim().startsWith('OFF') &&
+        !event.summary.trim().startsWith('GDO') &&
+        !event.summary.trim().startsWith('UDO') &&
+        !event.summary.trim().startsWith('LCR')
+      );
     });
 
     const upcoming = schedule
       .filter(event => {
         const start = new Date(event.start);
-        return start > now &&
-               !event.summary.trim().startsWith('OFF') &&
-               !event.summary.trim().startsWith('GDO') &&
-               !event.summary.trim().startsWith('UDO') &&
-               !event.summary.trim().startsWith('LCR');
+
+        return (
+          start > now &&
+          !event.summary.trim().startsWith('OFF') &&
+          !event.summary.trim().startsWith('GDO') &&
+          !event.summary.trim().startsWith('UDO') &&
+          !event.summary.trim().startsWith('LCR')
+        );
       })
-      .sort((a,b) =>
+      .sort((a, b) =>
         new Date(a.start) - new Date(b.start)
       )[0];
 
     const event = current || upcoming;
 
     if (!event) return;
+
+    const flightNumber =
+      event.summary.trim().split(/\s+/)[0];
+
+    const times = parseFlightTimes(event);
+
+    let dep;
+    let arr;
+
+    if (times) {
+      dep = times.dep;
+      arr = times.arr;
+    } else {
+      const routeMatch =
+        event.summary.match(/\b([A-Z]{3})-([A-Z]{3})\b/);
+
+      if (routeMatch) {
+        dep = routeMatch[1];
+        arr = routeMatch[2];
+      }
+    }
+
+    if (!dep || !arr) return;
+
+    const depInfo = airport(dep);
+    const arrInfo = airport(arr);
+
+    const reportDate = new Date(event.start);
+    const etaDate = new Date(event.end);
 
     const box = document.createElement('div');
     box.id = 'scheduleBox';
@@ -122,30 +391,105 @@ fetch('schedule.json?ts=' + Date.now())
       ? 'CURRENT FLIGHT'
       : 'NEXT FLIGHT';
 
-    const flightNumber =
-      event.summary.trim().split(/\s+/)[0];
+    const routeText =
+      `${dep} → ${arr}`;
 
-    box.innerHTML = `
-      <div><strong>${title}</strong></div>
-      <div>${event.summary || ''}</div>
-      <div>${event.location || ''}</div>
-      <br>
-      <button id="trackFlightButton">
-        TRACK FLIGHT
-      </button>
+    const cityRoute =
+      `${cityName(dep)} → ${cityName(arr)}`;
+
+    let html = `
+      <div class="status">${title}</div>
+
+      <div class="flightNumber">
+        ${flightNumber}
+      </div>
+
+      <div class="route">
+        ${routeText}
+      </div>
+
+      <div class="cityRoute">
+        ${cityRoute}
+      </div>
+
+      <div class="section">
+        SCHEDULE
+      </div>
+
+      <div class="row">
+        <span class="label">Report</span>
+        <span class="value">
+          ${formatTime(reportDate)}
+        </span>
+      </div>
     `;
+
+    if (times) {
+      html += `
+        <div class="row">
+          <span class="label">ETD ${dep}</span>
+          <span class="value">
+            ${formatTime(times.etd)}
+          </span>
+        </div>
+
+        <div class="row">
+          <span class="label">ETA ${arr}</span>
+          <span class="value">
+            ${formatTime(etaDate)}
+          </span>
+        </div>
+
+        <div class="section">
+          YOUR DEVICE LOCAL TIME
+        </div>
+
+        <div class="row">
+          <span class="label">ETD</span>
+          <span class="value localTime">
+            ${formatLocal(times.etd)}
+          </span>
+        </div>
+
+        <div class="row">
+          <span class="label">ETA</span>
+          <span class="value localTime">
+            ${formatLocal(etaDate)}
+          </span>
+        </div>
+      `;
+    } else {
+      html += `
+        <div class="row">
+          <span class="label">Arrival</span>
+          <span class="value">
+            ${formatLocal(etaDate)}
+          </span>
+        </div>
+      `;
+    }
+
+    html += `
+      <div class="section">
+        VIEWER TIME ZONE
+      </div>
+
+      <div class="row">
+        <span class="label">Device</span>
+        <span class="value">
+          ${deviceTimeZone()}
+        </span>
+      </div>
+    `;
+
+    box.innerHTML = html;
 
     document.body.appendChild(box);
 
-    document
-      .getElementById('trackFlightButton')
-      .onclick = function() {
-        trackFlight(flightNumber);
-      };
-
-    /* Automatically track an active flight */
-    if (current &&
-        !flightNumber.startsWith('UBER')) {
+    /*
+     * Automatically track the current flight.
+     */
+    if (current) {
       trackFlight(flightNumber);
     }
 
