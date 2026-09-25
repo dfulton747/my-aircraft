@@ -67,7 +67,7 @@ iframe {
 </div>
 
 <script>
-const base = 'https://globe.adsbexchange.com/?icao=';
+const base = 'https://globe.adsbexchange.com/?icao=';v
 
 function show(hex) {
   document.getElementById('map').src = base + hex;
@@ -75,8 +75,9 @@ function show(hex) {
 
 function trackFlight(callsign) {
   document.getElementById('map').src =
-    'https://globe.adsbexchange.com/?callsign=' +
-    encodeURIComponent(callsign);
+    'https://globe.adsbexchange.com/?filterCallSign=^' +
+    encodeURIComponent(callsign) +
+    '&enableLabels&extendedLabels=2';
 }
 
 show('A9C52E');
