@@ -75,7 +75,7 @@ function show(hex) {
 
 function trackFlight(callsign) {
   document.getElementById('map').src =
-    'https://globe.adsbexchange.com/?filterCallSign=^' +
+    'https://globe.adsbexchange.com/?filterCallSign=%5E' +
     encodeURIComponent(callsign) +
     '&enableLabels&extendedLabels=2';
 }
