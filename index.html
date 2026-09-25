@@ -25,13 +25,21 @@ iframe {
 #menu {
   position:fixed;
   top:10px;
+  left:10px;
+  z-index:100000;
+  display:flex;
+  flex-wrap:wrap;
+  gap:5px;
+}
 
-</style>
-</head>
-
-<body>
-
-<iframe id="map"></iframe>
+#menu button {
+  font-size:12px;
+  padding:5px 7px;
+  border-radius:6px;
+  border:1px solid #555;
+  background:#222;
+  color:white;
+}
 
 #scheduleBox {
   position:fixed;
@@ -56,6 +64,12 @@ iframe {
   font-weight:700;
 }
 
+#scheduleBox .flightType {
+  font-size:13px;
+  color:#7dd3fc;
+  margin-top:2px;
+}
+
 #scheduleBox .route {
   font-size:18px;
   font-weight:600;
@@ -73,7 +87,8 @@ iframe {
   font-weight:700;
   letter-spacing:1px;
   color:#aaa;
-  margin-top:8px;
+  margin-top:10px;
+  margin-bottom:3px;
 }
 
 #scheduleBox .row {
@@ -100,7 +115,41 @@ iframe {
   font-weight:700;
   margin-bottom:5px;
 }
-  <div id="menu">
+
+#scheduleBox .trackButton {
+  width:100%;
+  margin-top:14px;
+  padding:12px;
+  border:0;
+  border-radius:9px;
+  background:#2563eb;
+  color:white;
+  font-size:16px;
+  font-weight:700;
+}
+
+#scheduleBox .hotel {
+  margin-top:5px;
+}
+
+#scheduleBox .rest {
+  font-size:18px;
+  font-weight:700;
+  color:#7dd3fc;
+}
+
+#scheduleBox .small {
+  font-size:13px;
+  color:#bbb;
+}
+</style>
+</head>
+
+<body>
+
+<iframe id="map"></iframe>
+
+<div id="menu">
   <button onclick="show('A9C52E')">N729CA</button>
   <button onclick="show('A6CAA1')">N537CA</button>
   <button onclick="show('A8BF91')">N663CA</button>
@@ -113,61 +162,177 @@ iframe {
 </div>
 
 <script>
-const base = 'https://globe.adsbexchange.com/?icao=';v
+
+const base = 'https://globe.adsbexchange.com/?icao=';
+
+
+/* -------------------------------------------------
+   MANUAL TAIL NUMBER TRACKING
+------------------------------------------------- */
 
 function show(hex) {
   document.getElementById('map').src = base + hex;
 }
 
+
+/* -------------------------------------------------
+   ADS-B CALLSIGN TRACKING
+------------------------------------------------- */
+
 function trackFlight(callsign) {
-  document.getElementById('map').src =
+
+  const url =
     'https://globe.adsbexchange.com/?filterCallSign=%5E' +
     encodeURIComponent(callsign) +
     '&enableLabels&extendedLabels=2';
+
+  document.getElementById('map').src = url;
 }
 
-show('A9C52E');
+
+/* -------------------------------------------------
+   DETERMINE ADS-B CALLSIGN
+------------------------------------------------- */
+
+/*
+   Company operating flights:
+
+   CMB583  -> CMB583
+   583     -> NCR583
+
+   Deadhead flights:
+
+   UA5579  -> UAL5579
+   AA1234  -> AAL1234
+   DL123   -> DAL123
+*/
+
+const airlineIcao = {
+
+  AA: 'AAL',
+  AB: 'BER',
+  AC: 'ACA',
+  AF: 'AFR',
+  AS: 'ASA',
+  BA: 'BAW',
+  B6: 'JBU',
+  DL: 'DAL',
+  EK: 'UAE',
+  F9: 'FFT',
+  HA: 'HAL',
+  LH: 'DLH',
+  NK: 'NKS',
+  UA: 'UAL',
+  WN: 'SWA',
+  WS: 'WJA',
+  QR: 'QTR',
+  TK: 'THY',
+  SQ: 'SIA',
+  CX: 'CPA',
+  JL: 'JAL',
+  NH: 'ANA',
+  QF: 'QFA',
+  AC: 'ACA'
+};
 
 
-/* AUTOMATIC CALENDAR SCHEDULE */
+function getAdsbCallsign(flightNumber) {
+
+  const flight = flightNumber
+    .trim()
+    .toUpperCase();
+
+  /*
+     Military / company flight.
+     Already has CMB callsign.
+  */
+  if (flight.startsWith('CMB')) {
+    return flight;
+  }
+
+  /*
+     Plain company flight number.
+  */
+  if (/^\d+$/.test(flight)) {
+    return 'NCR' + flight;
+  }
+
+  /*
+     Deadhead flight.
+     Example:
+     UA5579 -> UAL5579
+  */
+
+  const match = flight.match(/^([A-Z0-9]{2,3})(\d+)$/);
+
+  if (!match) {
+    return flight;
+  }
+
+  const airline = match[1];
+  const number = match[2];
+
+  const icao = airlineIcao[airline] || airline;
+
+  return icao + number;
+}
+
+
+/* -------------------------------------------------
+   CALENDAR SCHEDULE
+------------------------------------------------- */
 
 fetch('schedule.json?ts=' + Date.now())
+
   .then(response => response.json())
+
   .then(schedule => {
 
     const now = new Date();
 
+
+    /* ---------------------------------------------
+       AIRPORT DATABASE
+    --------------------------------------------- */
+
     const airports = {
+
       PAM: {
         city: 'Panama City',
         country: 'USA',
         zone: 'America/Chicago'
       },
+
       ECP: {
         city: 'Panama City',
         country: 'USA',
         zone: 'America/Chicago'
       },
+
       ORD: {
         city: 'Chicago',
         country: 'USA',
         zone: 'America/Chicago'
       },
+
       AKH: {
         city: 'Al Kharj',
         country: 'Saudi Arabia',
         zone: 'Asia/Riyadh'
       },
+
       DWC: {
         city: 'Dubai',
         country: 'UAE',
         zone: 'Asia/Dubai'
       },
+
       ZAZ: {
         city: 'Zaragoza',
         country: 'Spain',
         zone: 'Europe/Madrid'
       },
+
       HKG: {
         city: 'Hong Kong',
         country: 'China',
@@ -175,233 +340,696 @@ fetch('schedule.json?ts=' + Date.now())
       }
     };
 
+
     function airport(code) {
+
       return airports[code] || {
+
         city: code,
         country: '',
         zone: null
+
       };
+
     }
 
+
     function cityName(code) {
+
       const a = airport(code);
+
       return a.country
         ? `${a.city}, ${a.country}`
         : a.city;
+
     }
+
 
     function formatLocal(date) {
+
       return new Intl.DateTimeFormat(undefined, {
+
         dateStyle: 'medium',
         timeStyle: 'short'
+
       }).format(date);
+
     }
+
 
     function formatTime(date) {
+
       return new Intl.DateTimeFormat(undefined, {
+
         hour: 'numeric',
         minute: '2-digit'
+
       }).format(date);
+
     }
+
 
     function deviceTimeZone() {
-      return Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+      return Intl.DateTimeFormat()
+        .resolvedOptions()
+        .timeZone;
+
     }
 
-    /*
-     * Convert a local date/time in a named airport time zone
-     * into an actual JavaScript Date.
-     */
-    function localTimeToDate(year, month, day, hour, minute, timeZone) {
+
+    /* ---------------------------------------------
+       TIME ZONE CONVERSION
+    --------------------------------------------- */
+
+    function localTimeToDate(
+      year,
+      month,
+      day,
+      hour,
+      minute,
+      timeZone
+    ) {
 
       let guess = new Date(
-        Date.UTC(year, month - 1, day, hour, minute)
-      );
-
-      for (let i = 0; i < 3; i++) {
-
-        const parts = new Intl.DateTimeFormat('en-US', {
-          timeZone: timeZone,
-          year: 'numeric',
-          month: '2-digit',
-          day: '2-digit',
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: false
-        }).formatToParts(guess);
-
-        const values = {};
-
-        parts.forEach(p => {
-          if (p.type !== 'literal') {
-            values[p.type] = p.value;
-          }
-        });
-
-        const shownAsUTC = Date.UTC(
-          Number(values.year),
-          Number(values.month) - 1,
-          Number(values.day),
-          Number(values.hour) === 24 ? 0 : Number(values.hour),
-          Number(values.minute)
-        );
-
-        const wantedAsUTC = Date.UTC(
+        Date.UTC(
           year,
           month - 1,
           day,
           hour,
           minute
-        );
+        )
+      );
+
+      for (let i = 0; i < 3; i++) {
+
+        const parts =
+          new Intl.DateTimeFormat('en-US', {
+
+            timeZone: timeZone,
+
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+
+            hour: '2-digit',
+            minute: '2-digit',
+
+            hour12: false
+
+          }).formatToParts(guess);
+
+        const values = {};
+
+        parts.forEach(p => {
+
+          if (p.type !== 'literal') {
+            values[p.type] = p.value;
+          }
+
+        });
+
+
+        const shownAsUTC =
+          Date.UTC(
+
+            Number(values.year),
+
+            Number(values.month) - 1,
+
+            Number(values.day),
+
+            Number(values.hour) === 24
+              ? 0
+              : Number(values.hour),
+
+            Number(values.minute)
+
+          );
+
+
+        const wantedAsUTC =
+          Date.UTC(
+
+            year,
+            month - 1,
+            day,
+            hour,
+            minute
+
+          );
+
 
         guess = new Date(
-          guess.getTime() + (wantedAsUTC - shownAsUTC)
+
+          guess.getTime() +
+          (wantedAsUTC - shownAsUTC)
+
         );
+
       }
 
       return guess;
     }
 
+
+    /* ---------------------------------------------
+       FLIGHT TIME PARSER
+    --------------------------------------------- */
+
     function parseFlightTimes(event) {
 
-      const description = event.description || '';
+      const description =
+        event.description || '';
 
-      /*
-       * Looks for:
-       * PAM (1955) - AKH (1840+1)
-       */
-      const match = description.match(
-        /([A-Z]{3})\s*\((\d{3,4})(?:\+1)?\)\s*-\s*([A-Z]{3})\s*\((\d{3,4})(?:\+1)?\)/
-      );
+
+      const match =
+        description.match(
+
+          /([A-Z]{3})\s*\((\d{3,4})(?:\+1)?\)\s*-\s*([A-Z]{3})\s*\((\d{3,4})(?:\+1)?\)/
+
+        );
+
 
       if (!match) return null;
 
+
       const dep = match[1];
+
       const etdText = match[2];
 
-      const reportDate = new Date(event.start);
+      const arr = match[3];
 
-      const depAirport = airport(dep);
+      const etaText = match[4];
 
-      if (!depAirport.zone) return null;
 
-      const depDateParts = new Intl.DateTimeFormat('en-US', {
-        timeZone: depAirport.zone,
-        year: 'numeric',
-        month: 'numeric',
-        day: 'numeric'
-      }).formatToParts(reportDate);
+      const reportDate =
+        new Date(event.start);
+
+
+      const depAirport =
+        airport(dep);
+
+
+      if (!depAirport.zone)
+        return null;
+
+
+      const dateParts =
+        new Intl.DateTimeFormat('en-US', {
+
+          timeZone: depAirport.zone,
+
+          year: 'numeric',
+          month: 'numeric',
+          day: 'numeric'
+
+        }).formatToParts(reportDate);
+
 
       const parts = {};
 
-      depDateParts.forEach(p => {
+
+      dateParts.forEach(p => {
+
         if (p.type !== 'literal') {
-          parts[p.type] = Number(p.value);
+
+          parts[p.type] =
+            Number(p.value);
+
         }
+
       });
 
-      let etdHour = Number(etdText.slice(0, -2));
-      let etdMinute = Number(etdText.slice(-2));
 
-      if (etdHour === 24) etdHour = 0;
+      let etdHour =
+        Number(etdText.slice(0, -2));
 
-      const etd = localTimeToDate(
-        parts.year,
-        parts.month,
-        parts.day,
-        etdHour,
-        etdMinute,
-        depAirport.zone
-      );
+      let etdMinute =
+        Number(etdText.slice(-2));
+
+
+      if (etdHour === 24)
+        etdHour = 0;
+
+
+      const etd =
+        localTimeToDate(
+
+          parts.year,
+          parts.month,
+          parts.day,
+
+          etdHour,
+          etdMinute,
+
+          depAirport.zone
+
+        );
+
+
+      /*
+         ETA is based on the arrival airport.
+         The +1 notation is handled here.
+      */
+
+      let etaHour =
+        Number(etaText.slice(0, -2));
+
+      let etaMinute =
+        Number(etaText.slice(-2));
+
+
+      if (etaHour === 24)
+        etaHour = 0;
+
+
+      let etaDay =
+        parts.day;
+
+
+      if (
+        /\+1/.test(
+          match[0]
+        )
+      ) {
+
+        /*
+           The +1 can apply to the
+           arrival portion.
+        */
+
+        const arrText =
+          match[4];
+
+        if (
+          description.match(
+            new RegExp(
+              arr +
+              '\\s*\\(' +
+              arrText +
+              '\\+1\\)'
+            )
+          )
+        ) {
+
+          etaDay =
+            new Date(
+              Date.UTC(
+                parts.year,
+                parts.month - 1,
+                parts.day + 1
+              )
+            ).getUTCDate();
+
+        }
+
+      }
+
+
+      const arrAirport =
+        airport(arr);
+
+
+      const eta =
+        arrAirport.zone
+
+          ? localTimeToDate(
+
+              parts.year,
+              parts.month,
+              etaDay,
+
+              etaHour,
+              etaMinute,
+
+              arrAirport.zone
+
+            )
+
+          : new Date(event.end);
+
 
       return {
+
         dep,
-        arr: match[3],
-        etd
+        arr,
+        etd,
+        eta
+
       };
+
     }
 
-    const current = schedule.find(event => {
-      const start = new Date(event.start);
-      const end = new Date(event.end);
+
+    /* ---------------------------------------------
+       EVENT FILTER
+    --------------------------------------------- */
+
+    function isExcluded(event) {
+
+      const summary =
+        (event.summary || '')
+          .trim()
+          .toUpperCase();
+
 
       return (
-        now >= start &&
-        now <= end &&
-        !event.summary.trim().startsWith('OFF') &&
-        !event.summary.trim().startsWith('GDO') &&
-        !event.summary.trim().startsWith('UDO') &&
-        !event.summary.trim().startsWith('LCR')
-      );
-    });
 
-    const upcoming = schedule
-      .filter(event => {
-        const start = new Date(event.start);
+        summary.startsWith('OFF') ||
+        summary.startsWith('GDO') ||
+        summary.startsWith('UDO') ||
+        summary.startsWith('LCR')
+
+      );
+
+    }
+
+
+    /* ---------------------------------------------
+       CURRENT FLIGHT
+    --------------------------------------------- */
+
+    const current =
+      schedule.find(event => {
+
+        if (isExcluded(event))
+          return false;
+
+
+        const start =
+          new Date(event.start);
+
+        const end =
+          new Date(event.end);
+
 
         return (
-          start > now &&
-          !event.summary.trim().startsWith('OFF') &&
-          !event.summary.trim().startsWith('GDO') &&
-          !event.summary.trim().startsWith('UDO') &&
-          !event.summary.trim().startsWith('LCR')
+
+          now >= start &&
+          now <= end
+
         );
-      })
-      .sort((a, b) =>
-        new Date(a.start) - new Date(b.start)
-      )[0];
 
-    const event = current || upcoming;
+      });
 
-    if (!event) return;
+
+    /* ---------------------------------------------
+       NEXT FLIGHT
+    --------------------------------------------- */
+
+    const upcoming =
+
+      schedule
+
+        .filter(event => {
+
+          if (isExcluded(event))
+            return false;
+
+
+          const start =
+            new Date(event.start);
+
+
+          return start > now;
+
+        })
+
+        .sort((a,b) =>
+
+          new Date(a.start) -
+          new Date(b.start)
+
+        )[0];
+
+
+    const event =
+      current || upcoming;
+
+
+    if (!event)
+      return;
+
+
+    /* ---------------------------------------------
+       FLIGHT NUMBER
+    --------------------------------------------- */
 
     const flightNumber =
-      event.summary.trim().split(/\s+/)[0];
 
-    const times = parseFlightTimes(event);
+      (event.summary || '')
+        .trim()
+        .split(/\s+/)[0];
+
+
+    const adsbCallsign =
+      getAdsbCallsign(
+        flightNumber
+      );
+
+
+    /*
+       Determine whether this is
+       a deadhead.
+
+       CMB### = company military flight
+       ###   = company civilian flight
+       AA1234 / UA5579 etc = deadhead
+    */
+
+    const isDeadhead =
+      !flightNumber.startsWith('CMB') &&
+      !/^\d+$/.test(flightNumber);
+
+
+    /* ---------------------------------------------
+       FLIGHT TIMES
+    --------------------------------------------- */
+
+    const times =
+      parseFlightTimes(event);
+
 
     let dep;
     let arr;
 
+
     if (times) {
+
       dep = times.dep;
       arr = times.arr;
+
     } else {
+
       const routeMatch =
-        event.summary.match(/\b([A-Z]{3})-([A-Z]{3})\b/);
+
+        event.summary.match(
+          /\b([A-Z]{3})-([A-Z]{3})\b/
+        );
+
 
       if (routeMatch) {
-        dep = routeMatch[1];
-        arr = routeMatch[2];
+
+        dep =
+          routeMatch[1];
+
+        arr =
+          routeMatch[2];
+
       }
+
     }
 
-    if (!dep || !arr) return;
 
-    const depInfo = airport(dep);
-    const arrInfo = airport(arr);
+    if (!dep || !arr)
+      return;
 
-    const reportDate = new Date(event.start);
-    const etaDate = new Date(event.end);
 
-    const box = document.createElement('div');
-    box.id = 'scheduleBox';
+    const depInfo =
+      airport(dep);
 
-    const title = current
-      ? 'CURRENT FLIGHT'
-      : 'NEXT FLIGHT';
+    const arrInfo =
+      airport(arr);
+
+
+    const reportDate =
+      new Date(event.start);
+
+
+    const etaDate =
+      times
+        ? times.eta
+        : new Date(event.end);
+
+
+    /* ---------------------------------------------
+       FIND NEXT DUTY EVENT
+    --------------------------------------------- */
+
+    const nextEvent =
+
+      schedule
+
+        .filter(e => {
+
+          if (e === event)
+            return false;
+
+          if (isExcluded(e))
+            return false;
+
+          return (
+            new Date(e.start) >
+            reportDate
+          );
+
+        })
+
+        .sort((a,b) =>
+
+          new Date(a.start) -
+          new Date(b.start)
+
+        )[0];
+
+
+    /* ---------------------------------------------
+       REST CALCULATION
+    --------------------------------------------- */
+
+    let restHours = null;
+
+    if (
+      nextEvent &&
+      etaDate
+    ) {
+
+      const nextReport =
+        new Date(nextEvent.start);
+
+
+      const milliseconds =
+        nextReport.getTime() -
+        etaDate.getTime();
+
+
+      if (
+        milliseconds > 0 &&
+        milliseconds <
+        7 * 24 * 60 * 60 * 1000
+      ) {
+
+        restHours =
+          milliseconds /
+          (1000 * 60 * 60);
+
+      }
+
+    }
+
+
+    function formatRest(hours) {
+
+      if (hours === null)
+        return null;
+
+
+      const totalMinutes =
+        Math.round(hours * 60);
+
+
+      const h =
+        Math.floor(
+          totalMinutes / 60
+        );
+
+
+      const m =
+        totalMinutes % 60;
+
+
+      return `${h}h ${m}m`;
+
+    }
+
+
+    /* ---------------------------------------------
+       HOTEL INFORMATION
+    --------------------------------------------- */
+
+    /*
+       The calendar can put hotel information
+       in either LOCATION or DESCRIPTION.
+
+       We display it when present.
+    */
+
+    const hotelText =
+      event.location ||
+      '';
+
+
+    const description =
+      event.description ||
+      '';
+
+
+    /*
+       Try to determine whether LOCATION
+       looks like a hotel rather than an airport.
+    */
+
+    const hotelLooksUseful =
+      hotelText &&
+      !/^(PAM|ECP|ORD|AKH|DWC|ZAZ|HKG)$/i.test(
+        hotelText.trim()
+      );
+
+
+    /* ---------------------------------------------
+       BUILD DISPLAY
+    --------------------------------------------- */
+
+    const box =
+      document.createElement('div');
+
+    box.id =
+      'scheduleBox';
+
+
+    const title =
+      current
+        ? 'CURRENT FLIGHT'
+        : 'NEXT FLIGHT';
+
 
     const routeText =
       `${dep} → ${arr}`;
 
+
     const cityRoute =
       `${cityName(dep)} → ${cityName(arr)}`;
 
+
     let html = `
-      <div class="status">${title}</div>
+
+      <div class="status">
+        ${title}
+      </div>
 
       <div class="flightNumber">
         ${flightNumber}
+      </div>
+
+      <div class="flightType">
+        ${
+          isDeadhead
+            ? 'DEADHEAD'
+            : 'OPERATING FLIGHT'
+        }
+        &nbsp; • &nbsp;
+        ADS-B: ${adsbCallsign}
       </div>
 
       <div class="route">
@@ -417,86 +1045,219 @@ fetch('schedule.json?ts=' + Date.now())
       </div>
 
       <div class="row">
-        <span class="label">Report</span>
+        <span class="label">
+          Report
+        </span>
+
         <span class="value">
           ${formatTime(reportDate)}
         </span>
       </div>
+
     `;
 
+
     if (times) {
+
       html += `
+
         <div class="row">
-          <span class="label">ETD ${dep}</span>
+
+          <span class="label">
+            ETD ${dep}
+          </span>
+
           <span class="value">
             ${formatTime(times.etd)}
           </span>
+
         </div>
 
+
         <div class="row">
-          <span class="label">ETA ${arr}</span>
-          <span class="value">
-            ${formatTime(etaDate)}
+
+          <span class="label">
+            ETA ${arr}
           </span>
+
+          <span class="value">
+            ${formatTime(times.eta)}
+          </span>
+
         </div>
+
 
         <div class="section">
           YOUR DEVICE LOCAL TIME
         </div>
 
+
         <div class="row">
-          <span class="label">ETD</span>
+
+          <span class="label">
+            ETD
+          </span>
+
           <span class="value localTime">
             ${formatLocal(times.etd)}
           </span>
+
         </div>
 
+
         <div class="row">
-          <span class="label">ETA</span>
+
+          <span class="label">
+            ETA
+          </span>
+
           <span class="value localTime">
-            ${formatLocal(etaDate)}
+            ${formatLocal(times.eta)}
           </span>
+
         </div>
+
       `;
-    } else {
-      html += `
-        <div class="row">
-          <span class="label">Arrival</span>
-          <span class="value">
-            ${formatLocal(etaDate)}
-          </span>
-        </div>
-      `;
+
     }
 
+
+    /* ---------------------------------------------
+       HOTEL / REST
+    --------------------------------------------- */
+
+    if (
+      hotelLooksUseful ||
+      restHours !== null
+    ) {
+
+      html += `
+
+        <div class="section">
+          HOTEL / REST
+        </div>
+
+      `;
+
+
+      if (hotelLooksUseful) {
+
+        html += `
+
+          <div class="hotel">
+
+            <div class="value"
+                 style="text-align:left">
+
+              ${hotelText}
+
+            </div>
+
+          </div>
+
+        `;
+
+      }
+
+
+      if (restHours !== null) {
+
+        html += `
+
+          <div class="row">
+
+            <span class="label">
+              Rest
+            </span>
+
+            <span class="rest">
+              ${formatRest(restHours)}
+            </span>
+
+          </div>
+
+        `;
+
+      }
+
+    }
+
+
+    /* ---------------------------------------------
+       VIEWER TIME ZONE
+    --------------------------------------------- */
+
     html += `
+
       <div class="section">
         VIEWER TIME ZONE
       </div>
 
       <div class="row">
-        <span class="label">Device</span>
+
+        <span class="label">
+          Device
+        </span>
+
         <span class="value">
           ${deviceTimeZone()}
         </span>
+
       </div>
+
     `;
 
-    box.innerHTML = html;
 
-    document.body.appendChild(box);
+    /* ---------------------------------------------
+       TRACK BUTTON
+    --------------------------------------------- */
 
-    /*
-     * Automatically track the current flight.
-     */
+    html += `
+
+      <button
+        class="trackButton"
+        onclick="trackFlight('${adsbCallsign}')">
+
+        TRACK ${isDeadhead ? 'DEADHEAD' : 'FLIGHT'}
+
+      </button>
+
+    `;
+
+
+    box.innerHTML =
+      html;
+
+
+    document.body.appendChild(
+      box
+    );
+
+
+    /* ---------------------------------------------
+       AUTOMATIC TRACKING
+    --------------------------------------------- */
+
     if (current) {
-      trackFlight(flightNumber);
+
+      trackFlight(
+        adsbCallsign
+      );
+
     }
 
   })
+
+
   .catch(error => {
-    console.log('Schedule load error:', error);
+
+    console.log(
+      'Schedule load error:',
+      error
+    );
+
   });
+
 </script>
 
 </body>
